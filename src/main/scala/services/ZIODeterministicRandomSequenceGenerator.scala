@@ -4,6 +4,7 @@ package services
 import scala.collection.AbstractIterator
 import scala.util.Random
 
+// TODO: Rename OR Make a ZIO Stream
 trait ZIODeterministicRandomSequenceIterator extends AbstractIterator[Int] with Iterator[Int] {}
 
 case class ZIODeterministicRandomSequenceGeneratorImpl(val seed: Long = 42, val blockSize: Int = 1024) {
