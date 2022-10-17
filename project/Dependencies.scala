@@ -11,6 +11,7 @@ object Dependencies {
   // ZIO
   val zio        = "dev.zio" %% "zio"          % Version.zio
   val zioStreams = "dev.zio" %% "zio-streams"  % Version.zio
+  val zioKafka   = "dev.zio" %% "zio-kafka"    % Version.zio
   val zioTest    = "dev.zio" %% "zio-test"     % Version.zio % Test
   val zioTestSbt = "dev.zio" %% "zio-test-sbt" % Version.zio % Test
 

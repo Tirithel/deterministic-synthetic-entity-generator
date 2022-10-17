@@ -4,8 +4,8 @@ ThisBuild / scalaVersion := Dependencies.Version.scala
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-Compile / resourceDirectory := baseDirectory.value / "./src/main/resources/scala"
-Runtime / resourceDirectory := baseDirectory.value / "./src/main/resources/scala"
+Compile / resourceDirectory := baseDirectory.value / "./src/main/scala/resources"
+Runtime / resourceDirectory := baseDirectory.value / "./src/main/scala/resources"
 
 lazy val root = (project in file("."))
   .settings(Settings.commonSettings)

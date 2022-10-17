@@ -4,19 +4,25 @@ package services
 import scala.collection.AbstractIterator
 import scala.util.Random
 
-// TODO: Rename OR Make a ZIO Stream
-trait ZIODeterministicRandomSequenceIterator extends AbstractIterator[Int] with Iterator[Int] {}
+import zio.stream.ZStream
 
-case class ZIODeterministicRandomSequenceGeneratorImpl(val seed: Long = 42, val blockSize: Int = 1024) {
+object DeterministicRandomSequenceGenerator {
+  def stream: ZStream[Any, Throwable, Int] = ZStream.fromIterator(DeterministicRandomSequenceGenerator().iteratorFromOffset(0))
+}
 
-  def iterator(offset: Int = 0): ZIODeterministicRandomSequenceIterator = ZIODeterministicRandomSequenceIteratorImpl(seed, blockSize, offset)
+case class DeterministicRandomSequenceGenerator(val seed: Long = 42, val blockSize: Int = 1024) {
+
+  def iteratorFromOffset(offset: Int = 0): DeterministicRandomSequenceIterator =
+    DeterministicRandomSequenceIteratorImpl(seed, blockSize, offset)
 
 }
 
-case class ZIODeterministicRandomSequenceIteratorImpl(
+trait DeterministicRandomSequenceIterator extends AbstractIterator[Int] with Iterator[Int]
+
+case class DeterministicRandomSequenceIteratorImpl(
   private val seed:      Long,
   private val blockSize: Int,
-  private val offset:    Int) extends ZIODeterministicRandomSequenceIterator {
+  private val offset:    Int) extends DeterministicRandomSequenceIterator {
 
   val globalRandom: Random = new Random(seed)
   val globalOffset: Int    = offset / blockSize

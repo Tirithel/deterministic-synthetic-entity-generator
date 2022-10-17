@@ -1,25 +1,29 @@
 package org.cmoran
 
-import org.cmoran.pipelines.ContainerEntity
-import org.cmoran.pipelines.ContainerEntity.tagPipe
-import org.cmoran.services.ZIODeterministicRandomSequenceGeneratorImpl
+import scala.language.postfixOps
 
+import model._
+import services.DeterministicRandomSequenceGenerator
 import zio._
-import zio.stream.{ ZSink, ZStream }
+import zio.stream._
 
 object Application extends ZIOAppDefault {
 
   val chunkSize = 1024
 
-  @Override
-  def run = for {
-    it <- ZStream
-      .fromIterator(ZIODeterministicRandomSequenceGeneratorImpl(blockSize = chunkSize).iterator().iterator)
-      .run(ZSink.collectAllN(chunkSize))
-    entities <- ZStream.fromIterable(it)
-      .via(tagPipe)
-      .run(ZSink.collectAll)
-    _ <- ZIO.foreach(entities)(e => Console.printLine(e.toString))
-  } yield ExitCode.success // processes one chunk then exits
+  var count = 0
+
+  private lazy val deterministicRandomSequenceGenerator: ZStream[Any, Throwable, Int] = DeterministicRandomSequenceGenerator.stream
+
+  override def run = Person
+    .process(deterministicRandomSequenceGenerator)
+    .run(ZSink.collectAllN[Person](3)
+      .map(personChunk =>
+        for {
+          person <- personChunk
+
+          fname = person.forename.value
+          lname = person.surname.value
+        } yield println(s"$fname $lname")))
 
 }

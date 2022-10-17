@@ -1,81 +1,253 @@
 package org.cmoran
 package utils.markov
 
-import scala.annotation.tailrec
+import scala.collection.{ mutable, SortedSet }
+import scala.language.postfixOps
 import scala.util.Random
 
-private case class Link[T](from: T, to: T)
+class Markov {
+  private var initialized: Boolean = false
+  var generator: Option[Generator] = None
 
-private case class To[T](to: T, times: Int) {
-  private[markov] def withProb(prob: Probability) = ToWithProb(to, prob)
-}
-
-private case class ToWithProb[T](to: T, prob: Probability)
-
-class Markov[T] {
-
-  def train(trainingSet: Seq[T])(
-    implicit random: Random): MarkovChain[T] = {
-    val occurrences = trainingSet match {
-      case Nil | _ :: Nil | _ :: _ :: Nil => throw new IllegalArgumentException("input too small")
-      case first :: others                => parseLink(Seq.empty, first, others)
+  /**
+    * @param model
+    *   Precompiled MarkovModel to generate against.
+    * @param order
+    *   The highest order model used by this generator. Generators own models of
+    *   order 1 through order "n". Generators of order "n" look back up to "n"
+    *   characters when choosing the next character.
+    * @param prior
+    *   Dirichlet prior, acts as an additive smoothing factor. The prior adds a
+    *   constant probability that a random letter is picked from the alphabet
+    *   when generating a new letter.
+    * @param backoff
+    *   Whether to fall back to lower orders of models when a higher-order model
+    *   fails to generate a letter.
+    * @param rand
+    *   optionally seeded random value for deterministic outcomes.
+    *
+    * @return
+    *   Generator
+    */
+  def generatorFromModel(
+    model: MarkovModel,
+    order: Int = 3,
+    prior: Float = 0.001f,
+    backoff: Boolean = true,
+    rand: Random = new Random()): Generator = {
+    if (!initialized) {
+      initialized = true
+      generator = Some(Generator(order, prior, backoff, model)(rand))
     }
-
-    val linksByFrom            = groupLinkByFrom(trainingSet, occurrences)
-    val fromToTotalOutputSteps = linksByFrom.map(item => (item._1, countTotalNextStateOccurrences(item._2)))
-    val fromToDstWithCount     = linksByFrom.map(item => (item._1, countTo(item._2)))
-    val fromToDstWithProb      = fromToDstWithCount.map(item => (item._1, countToProb(fromToTotalOutputSteps, item._1, item._2)))
-
-    val markovBuilder = fromToDstWithProb.foldRight(ChainBuilder[T]()) { (item, chainBuilder) =>
-      val from         = item._1
-      val destinations = item._2
-
-      destinations.foldRight(chainBuilder)((to, builder) => builder.linkTo(from, to.to, to.prob))
-    }
-
-    markovBuilder.build()
+    generator.get
   }
 
-  @tailrec
-  private def parseLink(accumulator: Seq[Link[T]], prevState: T, trainingSet: Seq[T]): Seq[Link[T]] = trainingSet match {
-    case Nil             => accumulator
-    case nextState :: xs => parseLink(Link(prevState, nextState) +: accumulator, nextState, xs)
+  /**
+    * @param data
+    *   Data used to create MarkovModels
+    * @param order
+    *   The highest order model used by this generator. Generators own models of
+    *   order 1 through order "n". Generators of order "n" look back up to "n"
+    *   characters when choosing the next character.
+    * @param prior
+    *   Dirichlet prior, acts as an additive smoothing factor. The prior adds a
+    *   constant probability that a random letter is picked from the alphabet
+    *   when generating a new letter.
+    * @param backoff
+    *   Whether to fall back to lower orders of models when a higher-order model
+    *   fails to generate a letter.
+    * @param rand
+    *   optionally seeded random value for deterministic outcomes.
+    *
+    * @return
+    *   Generator
+    */
+  def generatorFromData(
+    data: List[String],
+    order: Int = 3,
+    prior: Float = 0.001f,
+    backoff: Boolean = true,
+    rand: Random = new Random()): Generator = {
+    if (!initialized) generator = Some(generatorFromModel(MarkovModel.make(data, order, prior, backoff), order, prior, backoff, rand))
+    generator.get
   }
 
-  private def countTotalNextStateOccurrences(occurs: Seq[Link[T]]) = occurs.size
+  /**
+    * @param order
+    *   The highest order model used by this generator. Generators own models of
+    *   order 1 through order "n". Generators of order "n" look back up to "n"
+    *   characters when choosing the next character.
+    * @param prior
+    *   Dirichlet prior, acts as an additive smoothing factor. The prior adds a
+    *   constant probability that a random letter is picked from the alphabet
+    *   when generating a new letter.
+    * @param backoff
+    *   Whether to fall back to lower orders of models when a higher-order model
+    *   fails to generate a letter.
+    * @param model
+    *   The array of Markov models used by this generator, starting from highest
+    *   order to lowest order.
+    * @param rand
+    *   optionally seeded random value for deterministic outcomes.
+    */
+  case class Generator(
+    val order:         Int,
+    val prior:         Float,
+    val backoff:       Boolean = true,
+    val model:         MarkovModel)(
+    implicit val rand: Random) {
 
-  private def countTo(occurs: Seq[Link[T]]): Seq[To[T]] = {
-    val grouped      = occurs.groupBy(_.to)
-    val groupedCount = grouped.map(item => (item._1, item._2.size))
-    groupedCount.map(item => To(item._1, item._2)).toSeq
-  }
+    /**
+      * Generates a word.
+      *
+      * @return
+      *   The generated word.
+      */
+    def generate: String = {
+      var word = "#".repeat(order)
 
-  private def countToProb(total: Map[T, Int], from: T, occurs: Seq[To[T]]): Seq[ToWithProb[T]] = occurs.map { x =>
-    val totalForX = total(from)
-    val prob      = new Probability(x.times, totalForX)
-    x.withProb(prob)
-  }
-
-  private def groupLinkByFrom(trainingSet: Seq[T], occurrences: Seq[Link[T]]) = {
-    val lastStep :: nonLasts = trainingSet.reverse
-    val isLastStepUnique     = !nonLasts.contains(lastStep)
-
-    val stateWithNoLast = occurrences.groupBy(link => link.from)
-    val states =
-      if (isLastStepUnique) {
-        // forcing the chain to remain last step if the last state is unique
-        stateWithNoLast + (lastStep -> Seq(Link(lastStep, lastStep)))
-      } else {
-        stateWithNoLast
+      var letter = getLetter(word)
+      while (letter != null && letter != "#") {
+        if (letter != null) word = word + letter
+        letter = getLetter(word)
       }
-    states
+
+      word
+    }
+
+    /**
+      * Generates the next letter in a word.
+      *
+      * @param context
+      *   The context the models will use for generating the next letter.
+      * @return
+      *   The generated letter, or null if no model could generate one.
+      */
+    private def getLetter(word: String): String = {
+      var letter: String = null
+      var context        = word.substring(word.length - order, word.length)
+
+      for (model <- model.models) {
+        if (letter == null || letter == "#") {
+          letter = model.generate(context, rand)
+          context = context.substring(1)
+        }
+      }
+
+      letter
+    }
+
   }
 
-}
+  object MarkovModel {
 
-object Markov {
+    def make(data: List[String], order: Int, prior: Float, backoff: Boolean): MarkovModel = {
+      var letters: SortedSet[Char] = SortedSet()
+      var models: List[Model]      = List()
+      var domain: List[String]     = List()
 
-  def fromSequenceOfSteps[T](trainingSet: Seq[T])(
-    implicit random: Random): MarkovChain[T] = new Markov[T]().train(trainingSet)
+      for (pointer <- data.indices) {
+        data(pointer).foreach(letter => letters = letters + letter)
+      }
+
+      domain = letters.map(c => s"$c").toList.prepended("#")
+
+      if (backoff) {
+        for (i <- 0 until order) models = models.appended(Model(data.map(i => i), order - i, prior, domain))
+      } else {
+        models = models.appended(Model(data.map(i => i), order, prior, domain))
+      }
+
+      println("training & building!")
+      models.foreach { m =>
+        m.train(m.data)
+        m.build()
+      }
+      println("done all!")
+
+      new MarkovModel(models)
+    }
+
+  }
+
+  case class MarkovModel(var models: List[Model])
+
+  /**
+    * @param data
+    *   The training data for the model, an array of words.
+    * @param order
+    *   The order of the model i.e. how many characters this model looks back.
+    * @param prior
+    *   Dirichlet prior, like additive smoothing, increases the probability of
+    *   any item being picked.
+    * @param domain
+    *   The unique character set used in this model
+    */
+  case class Model(data: List[String], order: Int, prior: Float, domain: List[String]) {
+    private var observations: mutable.Map[String, List[String]] = mutable.Map[String, List[String]]()
+    private var chains: mutable.Map[String, List[Float]]        = mutable.Map[String, List[Float]]()
+
+    def train(data: List[String]): Unit = {
+      println("training...")
+      data.foreach { item =>
+        val str = ("#".repeat(order)) + item + "#"
+
+        for (index <- 0 until str.length - order) {
+
+          val key   = str.substring(index, index + order)
+          var value = observations.getOrElse(key, List[String]())
+
+          value = value.appended(s"${str.charAt(index + order)}")
+
+          observations.put(key, value)
+        }
+      }
+
+      println(s"training done observations=${observations.toList}.")
+    }
+
+    def build(): Unit = {
+      println("building...")
+      for (ctx <- observations.keys) {
+        for (prediction <- domain) {
+          chains.get(ctx) match {
+            case Some(value) => chains.put(ctx, value.appended(prior + countMatches(observations.get(ctx), prediction)))
+            case None        => chains.put(ctx, List(prior + countMatches(observations.get(ctx), prediction)))
+          }
+        }
+      }
+      println(s"done building chains=${chains.keys.toList.length}.")
+    }
+
+    private def countMatches(arr: Option[List[String]], str: String): Int = arr match {
+      case Some(value) => value.count(_ == str)
+      case None        => 0
+    }
+
+    def generate(ctx: String, rand: Random = new Random()): String = {
+      val value = chains.get(ctx).orNull
+      if (value == null) null
+      else domain(select(value, rand))
+    }
+
+    private def select(chain: List[Float], rand: Random): Int = {
+      var totals: List[Float] = List[Float]()
+      var accumulator: Float  = 0f
+
+      for (weight <- chain) {
+        accumulator = accumulator + weight
+        totals = totals ++ List(accumulator)
+      }
+
+      val random = rand.nextDouble() * accumulator
+
+      for (index <- totals.indices) {
+        if (random < totals(index)) return index
+      }
+
+      0
+    }
+
+  }
 
 }
