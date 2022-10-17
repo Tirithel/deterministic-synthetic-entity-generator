@@ -17,19 +17,20 @@ object Application extends ZIOAppDefault {
 
   override def run = Person
     .process(deterministicRandomSequenceGenerator)
-    .run(ZSink.collectAllN[Person](3)
+    .run(ZSink.collectAllN[Person](chunkSize)
       .map(personChunk =>
         for {
           person <- personChunk
 
           fname = person.forename.value
           lname = person.surname.value
-        } yield println(s"$fname $lname"))) *> Movie.process(deterministicRandomSequenceGenerator).run(ZSink.collectAllN[Movie](3)
-    .map(movieChunk =>
-      for {
-        movie <- movieChunk
-
-        title = movie.title
-      } yield println(s"$title")))
+        } yield println(s"$fname $lname")))
+//  *> Movie.process(deterministicRandomSequenceGenerator).run(ZSink.collectAllN[Movie](3)
+//    .map(movieChunk =>
+//      for {
+//        movie <- movieChunk
+//
+//        title = movie.title
+//      } yield println(s"$title")))
 
 }

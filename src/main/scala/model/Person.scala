@@ -3,8 +3,7 @@ package model
 
 import scala.util.Random
 
-import org.cmoran.utils.markov.Markov
-
+import utils._
 import zio.stream.ZStream
 
 // type ZPipeline[Env, Err, In, Out] = ZStream[Env, Err, In] => ZStream[Env, Err, Out]
@@ -50,7 +49,7 @@ private object Forename {
     val name = generator match {
       case Some(g) => g.generate.replace("#", "")
       case None => {
-        generator = Some(markov.generatorFromData(data = data, order = 3, prior = 0.0000f, backoff = false, rand = rand))
+        generator = Some(markov.generatorFromData(data = data, order = 3, prior = 0.0001f, backoff = false, rand = rand))
         generator.get.generate.replace("#", "")
       }
     }

@@ -3,8 +3,7 @@ package model
 
 import scala.util.Random
 
-import org.cmoran.utils.markov.Markov
-
+import utils._
 import zio.stream.ZStream
 
 case class Movie(seed: Int, title: MovieTitle)

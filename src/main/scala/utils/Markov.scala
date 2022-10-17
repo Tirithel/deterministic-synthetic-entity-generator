@@ -1,12 +1,11 @@
 package org.cmoran
-package utils.markov
+package utils
 
 import scala.collection.{ mutable, SortedSet }
 import scala.language.postfixOps
 import scala.util.Random
 
 class Markov {
-  private var initialized: Boolean = false
   var generator: Option[Generator] = None
 
   /**
@@ -34,12 +33,11 @@ class Markov {
     order: Int = 3,
     prior: Float = 0.001f,
     backoff: Boolean = true,
-    rand: Random = new Random()): Generator = {
-    if (!initialized) {
-      initialized = true
+    rand: Random = new Random()): Generator = generator match {
+    case Some(gen) => gen
+    case None =>
       generator = Some(Generator(order, prior, backoff, model)(rand))
-    }
-    generator.get
+      generator.get
   }
 
   /**
@@ -67,9 +65,11 @@ class Markov {
     order: Int = 3,
     prior: Float = 0.001f,
     backoff: Boolean = true,
-    rand: Random = new Random()): Generator = {
-    if (!initialized) generator = Some(generatorFromModel(MarkovModel.make(data, order, prior, backoff), order, prior, backoff, rand))
-    generator.get
+    rand: Random = new Random()): Generator = generator match {
+    case Some(gen) => gen
+    case None =>
+      generator = Some(Generator(order, prior, backoff, MarkovModel.make(data, order, prior, backoff))(rand))
+      generator.get
   }
 
   /**
@@ -91,10 +91,10 @@ class Markov {
     *   optionally seeded random value for deterministic outcomes.
     */
   case class Generator(
-    val order:         Int,
-    val prior:         Float,
-    val backoff:       Boolean = true,
-    val model:         MarkovModel)(
+    order:             Int,
+    prior:             Float,
+    backoff:           Boolean = true,
+    model:             MarkovModel)(
     implicit val rand: Random) {
 
     /**
@@ -158,12 +158,10 @@ class Markov {
         models = models.appended(Model(data.map(i => i), order, prior, domain))
       }
 
-      println("training & building!")
       models.foreach { m =>
         m.train(m.data)
         m.build()
       }
-      println("done all!")
 
       new MarkovModel(models)
     }
@@ -184,11 +182,10 @@ class Markov {
     *   The unique character set used in this model
     */
   case class Model(data: List[String], order: Int, prior: Float, domain: List[String]) {
-    private var observations: mutable.Map[String, List[String]] = mutable.Map[String, List[String]]()
-    private var chains: mutable.Map[String, List[Float]]        = mutable.Map[String, List[Float]]()
+    private val observations: mutable.Map[String, List[String]] = mutable.Map[String, List[String]]()
+    private val chains: mutable.Map[String, List[Float]]        = mutable.Map[String, List[Float]]()
 
     def train(data: List[String]): Unit = {
-      println("training...")
       data.foreach { item =>
         val str = ("#".repeat(order)) + item + "#"
 
@@ -203,11 +200,10 @@ class Markov {
         }
       }
 
-      println(s"training done observations=${observations.toList}.")
+      println(s"training done observations=${observations.toList.length}.")
     }
 
     def build(): Unit = {
-      println("building...")
       for (ctx <- observations.keys) {
         for (prediction <- domain) {
           chains.get(ctx) match {
