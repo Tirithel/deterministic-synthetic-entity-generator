@@ -24,6 +24,12 @@ object Application extends ZIOAppDefault {
 
           fname = person.forename.value
           lname = person.surname.value
-        } yield println(s"$fname $lname")))
+        } yield println(s"$fname $lname"))) *> Movie.process(deterministicRandomSequenceGenerator).run(ZSink.collectAllN[Movie](3)
+    .map(movieChunk =>
+      for {
+        movie <- movieChunk
+
+        title = movie.title
+      } yield println(s"$title")))
 
 }
