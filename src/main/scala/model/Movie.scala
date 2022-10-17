@@ -20,7 +20,7 @@ private object MovieTitle {
   var generator: Option[markov.Generator] = None
 
   def generate(seed: Int): MovieTitle = {
-    implicit val rand: Random = new Random(seed)
+    val rand: Random = new Random(seed)
 
     val title = generator match {
       case Some(g) => g.generate.replace("#", "")

@@ -23,12 +23,12 @@ private object Surname {
   var generator: Option[markov.Generator] = None
 
   def generate(seed: Int): Surname = {
-    implicit val rand: Random = new Random(seed)
+    val rand: Random = new Random(seed)
 
     val name = generator match {
       case Some(g) => g.generate.replace("#", "")
       case None => {
-        generator = Some(markov.generatorFromData(data = data, order = 3, prior = 0.0000f, backoff = false, rand = rand))
+        generator = Some(markov.generatorFromData(data = data, order = 3, prior = 0.001f, backoff = false, rand = rand))
         generator.get.generate.replace("#", "")
       }
     }
@@ -44,12 +44,12 @@ private object Forename {
   var generator: Option[markov.Generator] = None
 
   def generate(seed: Int): Forename = {
-    implicit val rand: Random = new Random(seed)
+    val rand: Random = new Random(seed)
 
     val name = generator match {
       case Some(g) => g.generate.replace("#", "")
       case None => {
-        generator = Some(markov.generatorFromData(data = data, order = 3, prior = 0.0001f, backoff = false, rand = rand))
+        generator = Some(markov.generatorFromData(data = data, order = 3, prior = 0.001f, backoff = false, rand = rand))
         generator.get.generate.replace("#", "")
       }
     }
