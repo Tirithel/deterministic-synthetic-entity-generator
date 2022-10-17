@@ -25,7 +25,7 @@ private object MovieTitle {
     val title = generator match {
       case Some(g) => g.generate.replace("#", "")
       case None => {
-        generator = Some(markov.generatorFromData(data = data, order = 3, prior = 0.0000f, backoff = false, rand = rand))
+        generator = Some(markov.generatorFromData(data = data, order = 2, prior = 0.001f, backoff = false, rand = rand))
         generator.get.generate.replace("#", "")
       }
     }
